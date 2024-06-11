@@ -1,0 +1,277 @@
+REPORT ZREPORT_SD01.
+
+"Tipo de campos de relatório
+TYPE-POOLS: slis.
+
+"Tipos de categoria de campo
+TYPES:
+t_fieldcat TYPE slis_fieldcat_alv,
+t_events   TYPE slis_alv_event,
+t_layout   TYPE slis_layout_alv.
+
+"Declaração de categorias de campos
+DATA: w_fieldcat TYPE t_fieldcat,
+      w_events   TYPE t_events,
+      w_layout   TYPE t_layout.
+
+DATA: i_fieldcat TYPE STANDARD TABLE OF t_fieldcat,
+      i_events   TYPE STANDARD TABLE OF t_events.
+
+"Declaração de tabelas internas
+ TYPES: BEGIN OF ty_vbak,
+
+  vbeln TYPE vbak-vbeln,
+  erdat TYPE vbak-erdat,
+  auart TYPE vbak-auart,
+  vkorg TYPE vbak-vkorg,
+  kunnr TYPE vbak-kunnr,
+
+  END OF ty_vbak.
+
+TYPES: BEGIN OF ty_vbap,
+
+  vbeln  TYPE vbap-vbeln,
+  matnr  TYPE vbap-matnr,
+  arktx  TYPE vbap-arktx,
+  kwmeng TYPE vbap-kwmeng,
+  meins  TYPE vbap-meins,
+  netwr  TYPE vbap-netwr,
+
+  END OF ty_vbap.
+
+TYPES: BEGIN OF ty_kna1,
+
+  name1 TYPE kna1-name1,
+  kunnr TYPE kna1-kunnr,
+
+  END OF ty_kna1.
+
+TYPES: BEGIN OF ty_tvakt,
+
+  bezei TYPE tvakt-bezei,
+  auart TYPE tvakt-auart,
+
+  END OF ty_tvakt.
+
+TYPES: BEGIN OF ty_final,
+
+  vbeln  TYPE vbak-vbeln,
+  erdat  TYPE vbak-erdat,
+  ernam  TYPE vbak-ernam,
+  audat  TYPE vbak-audat,
+  auart  TYPE vbak-auart,
+  bezei  TYPE tvakt-bezei,
+  kunnr  TYPE kna1-kunnr,
+  name1  TYPE kna1-name1,
+  matnr  TYPE vbap-matnr,
+  arktx  TYPE vbap-arktx,
+  kwmeng TYPE vbap-kwmeng,
+  meins  TYPE vbap-meins,
+  netwr  TYPE vbap-netwr,
+
+  END OF ty_final.
+
+"Declaração de work areas
+DATA: ti_vbak TYPE TABLE OF ty_vbak,
+      wa_vbak LIKE LINE  OF ti_vbak.
+
+DATA: ti_vbap TYPE TABLE OF ty_vbap,
+      wa_vbap LIKE LINE  OF ti_vbap.
+
+DATA: ti_kna1 TYPE TABLE OF ty_kna1,
+      wa_kna1 LIKE LINE  OF ti_kna1.
+
+DATA: ti_tvakt TYPE TABLE OF ty_tvakt,
+      wa_tvakt LIKE LINE  OF ti_tvakt.
+
+DATA: ti_final TYPE TABLE OF ty_final,
+      wa_final LIKE LINE  OF ti_final.
+
+"Construção da tela do relatório
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE text-001.
+
+  "Seleção de parâmetros
+  PARAMETERS     p_vbeln LIKE vbak-vbeln.
+  SELECT-OPTIONS p_erdat FOR  wa_vbak-erdat OBLIGATORY.
+  PARAMETERS     p_auart LIKE vbak-auart.
+  PARAMETERS     p_vkorg LIKE vbak-vkorg.
+  PARAMETERS     p_kunnr LIKE vbak-kunnr.
+
+SELECTION-SCREEN END OF BLOCK blk1.
+
+"Chamando funções de construção de ALV
+PERFORM data_select.
+PERFORM build_fieldcatlog.
+PERFORM build_events.
+PERFORM build_layout.
+PERFORM list_display.
+
+*&---------------------------------------------------------------------*
+*&      Form  data_select
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM data_select.
+
+*Populando a tabela interna com os dados de vbak e vbap
+SELECT a~vbeln a~erdat a~auart a~ernam a~audat a~vkorg a~kunnr
+       b~matnr b~arktx b~kwmeng b~meins b~netwr
+FROM   vbak  AS a INNER JOIN vbap AS b ON a~vbeln = b~vbeln
+INTO   CORRESPONDING FIELDS OF TABLE ti_final.
+
+IF ti_final[] IS NOT INITIAL.
+
+"Populando kna1 interna
+SELECT name1
+       kunnr
+FROM   kna1
+INTO TABLE ti_kna1
+FOR ALL ENTRIES IN  ti_final
+WHERE kunnr EQ ti_final-kunnr.
+
+"Populando tvakt interna
+SELECT bezei
+       auart
+FROM   tvakt
+INTO TABLE ti_tvakt
+FOR ALL ENTRIES IN ti_final
+WHERE auart EQ  ti_final-auart AND spras = 'PT'.
+
+"Juntando as tabelas internas temporárias na tabela de exibição
+LOOP AT ti_final INTO wa_final.
+
+  READ TABLE ti_kna1  INTO wa_final-name1  WITH KEY kunnr = wa_final-kunnr.
+
+  READ TABLE ti_tvakt INTO wa_final-bezei  WITH KEY auart = wa_final-auart.
+
+  MODIFY ti_final FROM wa_final.
+
+ENDLOOP.
+
+ENDIF.
+
+ENDFORM.                    " DATA_SELECT
+
+*&---------------------------------------------------------------------*
+*&      Form  data_select
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  build_fieldcatlog
+*&---------------------------------------------------------------------*
+FORM build_fieldcatlog .
+  CLEAR:w_fieldcat,i_fieldcat[].
+
+  PERFORM build_fcatalog USING:
+           'VBELN'       'VBAK'    'Documento SD',
+           'ERDAT'       'VBAK'    'Dt.criação',
+           'AUART'       'VBAK'    'TpDocVend.',
+           'ERNAM'       'VBAK'    'Criado por',
+           'AUDAT'       'VBAK'    'Data doc.',
+           'BEZEI'       'TVAKT'   'Nome',
+           'KUNNR'       'KNA1'    'Nº cliente',
+           'NAME1'       'KNA1'    'Nome 1',
+           'MATNR'       'VBAP'    'Material',
+           'ARKTX'       'VBAP'    'Denominação',
+           'KWMENG'      'VBAP'    'QtdOrdemAcum.',
+           'MEINS'       'VBAP'    'UM básica',
+           'NETWR'       'VBAP'    'Valor líquido'.
+
+ENDFORM.                    "BUILD_FIELDCATLOG
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_FCATALOG
+*&---------------------------------------------------------------------*
+
+FORM build_fcatalog USING l_field l_tab l_text.
+
+  w_fieldcat-fieldname      = l_field.
+  w_fieldcat-tabname        = l_tab.
+  w_fieldcat-seltext_m      = l_text.
+
+  APPEND w_fieldcat TO i_fieldcat.
+  CLEAR w_fieldcat.
+
+ENDFORM.                    " build_fieldcatlog
+
+*&---------------------------------------------------------------------*
+*&      Form  build_events
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM build_events.
+  CLEAR :
+  w_events, i_events[].
+  w_events-name = 'TOP_OF_PAGE'."Event Name
+  w_events-form = 'TOP_OF_PAGE'."Callback event subroutine
+  APPEND w_events TO i_events.
+  CLEAR  w_events.
+
+ENDFORM.                    "build_events
+*&---------------------------------------------------------------------*
+*&      Form  build_layout
+*&---------------------------------------------------------------------*
+FORM build_layout .
+
+  w_layout-colwidth_optimize = 'X'.
+  w_layout-zebra             = 'X'.
+
+ENDFORM.                    " build_layout
+*&---------------------------------------------------------------------*
+*&      Form  list_display
+*&---------------------------------------------------------------------*
+FORM list_display .
+  DATA:
+        l_program TYPE sy-repid.
+  l_program = sy-repid.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = l_program
+      is_layout                = w_layout
+      it_fieldcat              = i_fieldcat
+      it_events                = i_events
+    TABLES
+      t_outtab           = ti_final
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                    " list_display
+*&---------------------------------------------------------------------*
+*&      Form  top_of_page
+*&---------------------------------------------------------------------*
+
+FORM top_of_page.
+  DATA :
+   li_header TYPE slis_t_listheader,
+   w_header  LIKE LINE OF li_header.
+  DATA:
+        l_date TYPE char10.
+  WRITE sy-datum TO l_date.
+  w_header-typ  = 'H'.
+  CONCATENATE sy-repid ':' 'From Date' l_date INTO w_header-info SEPARATED BY space.
+  APPEND w_header TO li_header.
+  CLEAR w_header.
+
+  w_header-typ  = 'S'.
+  w_header-info = sy-title.
+  APPEND w_header TO li_header.
+  CLEAR w_header.
+
+  w_header-typ  = 'A'.
+  w_header-info = sy-uname.
+  APPEND w_header TO li_header.
+  CLEAR w_header.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = li_header.
+
+ENDFORM.                    "top_of_page
+
+"Fim do programa
+END-OF-SELECTION.
