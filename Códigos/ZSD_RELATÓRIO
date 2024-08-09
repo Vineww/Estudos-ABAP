@@ -1,0 +1,56 @@
+REPORT ZEXERCICIO01.
+
+*Declaração de tabelas
+TABLES: spfli.
+
+*Declaração de tabelas internas
+TYPES: BEGIN OF ty_spfli,
+
+  carrid   TYPE spfli-carrid,
+  connid   TYPE spfli-connid,
+  cityfrom TYPE spfli-cityfrom,
+  cityto   TYPE spfli-cityto,
+  airpto   TYPE spfli-airpto,
+
+  END OF ty_spfli.
+
+DATA: ti_spfli TYPE TABLE OF ty_spfli,
+      wa_spfli LIKE LINE  OF ti_spfli.
+
+*Declaração de variáveis
+DATA: col(6)  TYPE c,
+      len     TYPE i VALUE 5,
+      i       TYPE i VALUE 0.
+
+*Inicio do bloco de processamento
+START-OF-SELECTION.
+
+*Deleta as entradas onde o cityfrom é 'SINGAPORE'
+DELETE FROM spfli
+WHERE cityfrom EQ 'SINGAPORE'.
+
+*Seleciona dados para work area
+SELECT carrid
+       connid
+       cityfrom
+       cityto
+       airpto
+  FROM spfli
+  INTO CORRESPONDING FIELDS OF wa_spfli.
+  APPEND wa_spfli TO ti_spfli.
+ENDSELECT.
+
+CLEAR wa_spfli.
+
+*Exibe a Lista
+LOOP AT ti_spfli INTO wa_spfli.
+
+  WRITE: /(4) i, AT 7 wa_spfli-airpto   COLOR 2,
+         col,         wa_spfli-carrid   COLOR 3,
+         col,         wa_spfli-connid   COLOR 4,
+         col,         wa_spfli-cityfrom COLOR 5,
+         col,         wa_spfli-cityto   COLOR 6.
+
+  i = i + 1.
+
+ENDLOOP.
